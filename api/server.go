@@ -49,7 +49,6 @@ func setHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Cache-Control", "no-cache")
-	w.WriteHeader(http.StatusOK)
 }
 
 func NewApiServer(cfg *ApiConfig, backend *storage.RedisClient) *ApiServer {
@@ -123,9 +122,7 @@ func (s *ApiServer) listen() {
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Cache-Control", "no-cache")
+	setHeader(w)
 	w.WriteHeader(http.StatusNotFound)
 }
 
@@ -159,6 +156,7 @@ func (s *ApiServer) collectStats() {
 
 func (s *ApiServer) StatsIndex(w http.ResponseWriter, r *http.Request) {
 	setHeader(w)
+	w.WriteHeader(http.StatusOK)
 
 	reply := make(map[string]interface{})
 	nodes, err := s.backend.GetNodeStates()
@@ -186,6 +184,7 @@ func (s *ApiServer) StatsIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *ApiServer) MinersIndex(w http.ResponseWriter, r *http.Request) {
 	setHeader(w)
+	w.WriteHeader(http.StatusOK)
 
 	reply := make(map[string]interface{})
 	stats := s.getStats()
@@ -204,6 +203,7 @@ func (s *ApiServer) MinersIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *ApiServer) BlocksIndex(w http.ResponseWriter, r *http.Request) {
 	setHeader(w)
+	w.WriteHeader(http.StatusOK)
 
 	reply := make(map[string]interface{})
 	stats := s.getStats()
@@ -225,6 +225,7 @@ func (s *ApiServer) BlocksIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *ApiServer) PaymentsIndex(w http.ResponseWriter, r *http.Request) {
 	setHeader(w)
+	w.WriteHeader(http.StatusOK)
 
 	reply := make(map[string]interface{})
 	stats := s.getStats()
