@@ -111,6 +111,13 @@
 		"bgsave": false
 	},
 
+	"logger": {
+		"logPath": "./demo.log",
+        "errLogPath": "./demo_err.log",
+        "saveDays": 7,
+        "cutInterval": 86400
+	},
+
 	"newrelicEnabled": false,
 	"newrelicName": "MyEtherProxy",
 	"newrelicKey": "SECRET_KEY",

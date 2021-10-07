@@ -19,8 +19,10 @@ import (
 	"github.com/etclabscore/core-pool/storage"
 )
 
-var cfg proxy.Config
-var backend *storage.RedisClient
+var (
+	cfg     proxy.Config
+	backend *storage.RedisClient
+)
 
 func startProxy() {
 	s := proxy.NewProxy(&cfg, backend)
@@ -74,7 +76,7 @@ func readConfig(cfg *proxy.Config) {
 func main() {
 	readConfig(&cfg)
 	rand.Seed(time.Now().UnixNano())
-	logger.InitTimeLogger("./demo.log", "./demo_err.log", 7, 3600*24)
+	logger.InitTimeLogger(cfg.Logger.LogPath, cfg.Logger.ErrLogPath, cfg.Logger.SaveDays, cfg.Logger.CutInterval)
 
 	if cfg.Threads > 0 {
 		runtime.GOMAXPROCS(cfg.Threads)

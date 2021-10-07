@@ -5,6 +5,7 @@ import (
 	"github.com/etclabscore/core-pool/payouts"
 	"github.com/etclabscore/core-pool/policy"
 	"github.com/etclabscore/core-pool/storage"
+	"time"
 )
 
 type Config struct {
@@ -22,6 +23,8 @@ type Config struct {
 
 	BlockUnlocker payouts.UnlockerConfig `json:"unlocker"`
 	Payouts       payouts.PayoutsConfig  `json:"payouts"`
+
+	Logger Logger `json:"logger"`
 
 	NewrelicName    string `json:"newrelicName"`
 	NewrelicKey     string `json:"newrelicKey"`
@@ -63,4 +66,11 @@ type Upstream struct {
 	Name    string `json:"name"`
 	Url     string `json:"url"`
 	Timeout string `json:"timeout"`
+}
+
+type Logger struct {
+	LogPath     string        `json:"logPath"`
+	ErrLogPath  string        `json:"errLogPath"`
+	SaveDays    time.Duration `json:"saveDays"`
+	CutInterval time.Duration `json:"cutInterval"`
 }
