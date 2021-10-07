@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/etclabscore/core-pool/util/logger"
 	"io"
 	"log"
 	"math/rand"
@@ -38,7 +39,7 @@ func (s *ProxyServer) ListenTCP() {
 		var cert tls.Certificate
 		cert, err = tls.LoadX509KeyPair(s.config.Proxy.Stratum.CertFile, s.config.Proxy.Stratum.KeyFile)
 		if err != nil {
-			log.Fatalln("Error loading certificate:", err)
+			logger.Fatal("Error loading certificate: %v", err)
 		}
 		tlsCfg := &tls.Config{Certificates: []tls.Certificate{cert}}
 		server, err = tls.Listen("tcp", s.config.Proxy.Stratum.Listen, tlsCfg)
@@ -49,11 +50,11 @@ func (s *ProxyServer) ListenTCP() {
 		}
 	}
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		logger.Fatal("Error: %v", err)
 	}
 	defer server.Close()
 
-	log.Printf("Stratum listening on %s", s.config.Proxy.Stratum.Listen)
+	logger.Info("Stratum listening on %s", s.config.Proxy.Stratum.Listen)
 	var accept = make(chan int, s.config.Proxy.Stratum.MaxConn)
 	n := 0
 
@@ -96,15 +97,15 @@ func (s *ProxyServer) handleTCPClient(cs *Session) error {
 	for {
 		data, isPrefix, err := connbuff.ReadLine()
 		if isPrefix {
-			log.Printf("Socket flood detected from %s", cs.ip)
+			logger.Warn("Socket flood detected from %s", cs.ip)
 			s.policy.BanClient(cs.ip)
 			return err
 		} else if err == io.EOF {
-			log.Printf("Client %s disconnected", cs.ip)
+			logger.Info("Client %s disconnected", cs.ip)
 			s.removeSession(cs)
 			break
 		} else if err != nil {
-			log.Printf("Error reading from socket: %v", err)
+			logger.Error("Error reading from socket: %v", err)
 			return err
 		}
 
@@ -113,7 +114,7 @@ func (s *ProxyServer) handleTCPClient(cs *Session) error {
 			err = json.Unmarshal(data, &req)
 			if err != nil {
 				s.policy.ApplyMalformedPolicy(cs.ip)
-				log.Printf("Malformed stratum request from %s: %v", cs.ip, err)
+				logger.Error("Malformed stratum request from %s: %v", cs.ip, err)
 				return err
 			}
 			s.setDeadline(cs.conn)
@@ -152,7 +153,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		var params []string
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil || len(params) < 1 {
-			log.Println("Malformed stratum request params from", cs.ip)
+			logger.Error("Malformed stratum request params from %s, params: %v", cs.ip, req.Params)
 			return err
 		}
 		reply, errReply := s.handleLoginRPC(cs, params, req.Worker)
@@ -168,7 +169,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil || len(params) < 2 {
 			if cs.stratumMode() != Stratum2 {
-				log.Println("Malformed stratum request params from", cs.ip)
+				logger.Error("Malformed stratum request params from %s, params: %v", cs.ip, req.Params)
 				return err
 			}
 			// always set session Id FIXME
@@ -183,12 +184,12 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		}
 
 		if params[1] != "EthereumStratum/1.0.0" {
-			log.Println("Unsupported stratum version from ", cs.ip)
+			logger.Warn("Unsupported stratum version from %s", cs.ip)
 			return cs.sendStratumError(req.Id, "unsupported stratum version")
 		}
 
 		cs.setStratumMode("EthereumStratum/1.0.0")
-		log.Println("Nicehash subscribe", cs.ip)
+		logger.Info("Nicehash subscribe %s", cs.ip)
 		result := cs.getNotificationResponse(s)
 		return cs.sendStratumResult(req.Id, result)
 
@@ -196,16 +197,16 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		var params map[string]string
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil || len(params) < 2 {
-			log.Println("Malformed stratum request params from", cs.ip)
+			logger.Error("Malformed stratum request params from %s, params: %v", cs.ip, req.Params)
 			return err
 		}
 
 		if params["proto"] != "EthereumStratum/2.0.0" {
-			log.Println("Unsupported stratum version from ", cs.ip)
+			logger.Warn("Unsupported stratum version from %s", cs.ip)
 			return cs.sendStratumError(req.Id, "unsupported stratum version")
 		}
 
-		log.Println("EthereumStratum/2.0.0 hello", cs.ip)
+		logger.Info("EthereumStratum/2.0.0 hello %s", cs.ip)
 		result := map[string]interface{}{
 			"proto":     "EthereumStratum/2.0.0",
 			"encoding":  "plain",
@@ -239,7 +240,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 			var params []string
 			err := json.Unmarshal(req.Params, &params)
 			if err != nil || len(params) < 1 {
-				return errors.New("invalid params")
+				return fmt.Errorf("invalid params %v", req.Params)
 			}
 			splitData := strings.Split(params[0], ".")
 			params[0] = splitData[0]
@@ -262,7 +263,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 			var params []string
 			err := json.Unmarshal(req.Params, &params)
 			if err != nil || len(params) < 3 {
-				log.Println("mining.submit: json.Unmarshal fail")
+				logger.Error("mining.submit: json.Unmarshal fail, params: %v", req.Params)
 				return err
 			}
 
@@ -276,14 +277,14 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 			if cs.JobDetails.JobID != params[0] {
 				stale, ok := cs.staleJobs[params[0]]
 				if ok {
-					log.Printf("Cached stale JobID %s", params[0])
+					logger.Info("Cached stale JobID %s", params[0])
 					params = []string{
 						cs.Extranonce + params[1],
 						stale.SeedHash,
 						stale.HeaderHash,
 					}
 				} else {
-					log.Printf("Stale share (mining.submit JobID received %s != current %s)", params[0], cs.JobDetails.JobID)
+					logger.Warn("Stale share (mining.submit JobID received %s != current %s)", params[0], cs.JobDetails.JobID)
 					if err := cs.sendStratumError(req.Id, map[string]string{"code": "202", "message": "Stale share."}); err != nil {
 						return err
 					}
@@ -301,7 +302,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 
 			reply, errReply := s.handleTCPSubmitRPC(cs, id, params)
 			if errReply != nil {
-				log.Println("mining.submit: handleTCPSubmitRPC failed")
+				logger.Error("mining.submit: handleTCPSubmitRPC failed, id: %s, params: %s", id, params)
 				return cs.sendStratumError(req.Id, []string{
 					strconv.Itoa(errReply.Code),
 					errReply.Message,
@@ -325,7 +326,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 			var params []string
 			err := json.Unmarshal(req.Params, &params)
 			if err != nil || len(params) < 1 {
-				return errors.New("invalid params")
+				return fmt.Errorf("invalid params %v", req.Params)
 			}
 			splitData := strings.Split(params[0], ".")
 			params[0] = splitData[0]
@@ -356,7 +357,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 			if req.Params != nil {
 				err := json.Unmarshal(req.Params, &params)
 				if err != nil {
-					return errors.New("invalid params")
+					return fmt.Errorf("invalid params %v", req.Params)
 				}
 			}
 			if len(params) == 0 {
@@ -381,7 +382,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 			var params []string
 			err := json.Unmarshal(req.Params, &params)
 			if err != nil || len(params) < 3 {
-				log.Println("mining.submit: json.Unmarshal fail")
+				logger.Error("mining.submit: json.Unmarshal fail, params: %v", req.Params)
 				return err
 			}
 
@@ -408,14 +409,14 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 			if cs.JobDetails.JobID != params[1] {
 				stale, ok := cs.staleJobs[params[1]]
 				if ok {
-					log.Printf("Cached stale JobID %s", params[1])
+					logger.Info("Cached stale JobID %s", params[1])
 					params = []string{
 						nonce,
 						stale.SeedHash,
 						stale.HeaderHash,
 					}
 				} else {
-					log.Printf("Stale share (mining.submit JobID received %s != current %s)", params[1], cs.JobDetails.JobID)
+					logger.Warn("Stale share (mining.submit JobID received %s != current %s)", params[1], cs.JobDetails.JobID)
 					if err := cs.sendStratumError(req.Id, []string{"21", "Stale share."}); err != nil {
 						return err
 					}
@@ -431,7 +432,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 
 			reply, errReply := s.handleTCPSubmitRPC(cs, id, params)
 			if errReply != nil {
-				log.Println("mining.submit: handleTCPSubmitRPC failed")
+				logger.Error("mining.submit: handleTCPSubmitRPC failed, id: %s, params: %v", id, params)
 				return cs.sendStratumError(req.Id, []string{
 					strconv.Itoa(errReply.Code),
 					errReply.Message,
@@ -466,7 +467,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		var params []string
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil || len(params) < 3 {
-			log.Println("Malformed stratum request params from", cs.ip)
+			logger.Error("Malformed stratum request params from %s, params: %v", cs.ip, req.Params)
 			return err
 		}
 		reply, errReply := s.handleTCPSubmitRPC(cs, req.Worker, params)
@@ -720,7 +721,7 @@ func (s *ProxyServer) broadcastNewJobs() {
 	defer s.sessionsMu.RUnlock()
 
 	count := len(s.sessions)
-	log.Printf("Broadcasting new job to %v stratum miners", count)
+	logger.Info("Broadcasting new job to %d stratum miners", count)
 
 	start := time.Now()
 	bcast := make(chan int, 1024)
@@ -734,14 +735,14 @@ func (s *ProxyServer) broadcastNewJobs() {
 			err := cs.pushNewJob(s, &reply)
 			<-bcast
 			if err != nil {
-				log.Printf("Job transmit error to %v@%v: %v", cs.login, cs.ip, err)
+				logger.Error("Job transmit error to %s@%s: %v", cs.login, cs.ip, err)
 				s.removeSession(cs)
 			} else {
 				s.setDeadline(cs.conn)
 			}
 		}(m)
 	}
-	log.Printf("Jobs broadcast finished %s", time.Since(start))
+	logger.Info("Jobs broadcast finished %s", time.Since(start))
 }
 
 func (s *ProxyServer) uniqExtranonce() string {

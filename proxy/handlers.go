@@ -1,7 +1,7 @@
 package proxy
 
 import (
-	"log"
+	"github.com/etclabscore/core-pool/util/logger"
 	"regexp"
 	"strings"
 
@@ -29,7 +29,7 @@ func (s *ProxyServer) handleLoginRPC(cs *Session, params []string, id string) (b
 	}
 	cs.login = login
 	s.registerSession(cs)
-	log.Printf("Stratum miner connected %v@%v", login, cs.ip)
+	logger.Info("Stratum miner connected %v@%v", login, cs.ip)
 	return true, nil
 }
 
@@ -59,7 +59,7 @@ func (s *ProxyServer) handleSubmitRPC(cs *Session, login, id string, params []st
 	}
 	if len(params) != 3 {
 		s.policy.ApplyMalformedPolicy(cs.ip)
-		log.Printf("Malformed params from %s@%s %v", login, cs.ip, params)
+		logger.Warn("Malformed params from %s@%s %v", login, cs.ip, params)
 		return false, &ErrorReply{Code: -1, Message: "Invalid params"}
 	}
 
@@ -74,7 +74,7 @@ func (s *ProxyServer) handleSubmitRPC(cs *Session, login, id string, params []st
 
 	if !noncePattern.MatchString(params[0]) || !hashPattern.MatchString(params[1]) || !hashPattern.MatchString(params[2]) {
 		s.policy.ApplyMalformedPolicy(cs.ip)
-		log.Printf("Malformed PoW result from %s@%s %v", login, cs.ip, params)
+		logger.Warn("Malformed PoW result from %s@%s %v", login, cs.ip, params)
 		return false, &ErrorReply{Code: -1, Message: "Malformed PoW result"}
 	}
 	t := s.currentBlockTemplate()
@@ -82,7 +82,7 @@ func (s *ProxyServer) handleSubmitRPC(cs *Session, login, id string, params []st
 	ok := s.policy.ApplySharePolicy(cs.ip, !exist && validShare)
 
 	if exist {
-		log.Printf("Duplicate share from %s@%s %v", login, cs.ip, params)
+		logger.Warn("Duplicate share from %s@%s %v", login, cs.ip, params)
 		// see https://github.com/sammy007/open-ethereum-pool/compare/master...nicehashdev:patch-1
 		if !ok {
 			return false, &ErrorReply{Code: 23, Message: "Invalid share"}
@@ -91,7 +91,7 @@ func (s *ProxyServer) handleSubmitRPC(cs *Session, login, id string, params []st
 	}
 
 	if !validShare {
-		log.Printf("Invalid share from %s@%s", login, cs.ip)
+		logger.Warn("Invalid share from %s@%s", login, cs.ip)
 		// Bad shares limit reached, return error and close
 		if !ok {
 			return false, &ErrorReply{Code: 23, Message: "Invalid share"}
@@ -99,7 +99,7 @@ func (s *ProxyServer) handleSubmitRPC(cs *Session, login, id string, params []st
 		return false, nil
 	}
 	if s.config.Proxy.Debug {
-		log.Printf("Valid share from %s@%s", login, cs.ip)
+		logger.Debug("Valid share from %s@%s", login, cs.ip)
 	}
 
 	if !ok {
@@ -118,7 +118,7 @@ func (s *ProxyServer) handleGetBlockByNumberRPC() *rpc.GetBlockReplyPart {
 }
 
 func (s *ProxyServer) handleUnknownRPC(cs *Session, m string) *ErrorReply {
-	log.Printf("Unknown request method %s from %s", m, cs.ip)
+	logger.Warn("Unknown request method %s from %s", m, cs.ip)
 	s.policy.ApplyMalformedPolicy(cs.ip)
 	return &ErrorReply{Code: -3, Message: "Method not found"}
 }

@@ -1,7 +1,7 @@
 package proxy
 
 import (
-	"log"
+	"github.com/etclabscore/core-pool/util/logger"
 	"math/big"
 	"strconv"
 	"strings"
@@ -32,7 +32,7 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 			hasher = etchash.New(nil, nil)
 		} else {
 			// unknown network
-			log.Printf("Unknown network configuration %s", s.config.Network)
+			logger.Error("Unknown network configuration %s", s.config.Network)
 			return false, false
 		}
 	}
@@ -68,18 +68,18 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 	shareDiffCalc := util.TargetHexToDiff(result.Hex()).Int64()
 	shareDiffFloat := util.DiffIntToFloat(shareDiffCalc)
 	if shareDiffFloat < 0.0001 {
-		log.Printf("share difficulty too low, %f < %d, from %v@%v", shareDiffFloat, t.Difficulty, login, ip)
+		logger.Warn("share difficulty too low, %f < %d, from %v@%v", shareDiffFloat, t.Difficulty, login, ip)
 		return false, false
 	}
 
 	h, ok := t.headers[hashNoNonce]
 	if !ok {
-		log.Printf("Stale share from %v@%v", login, ip)
+		logger.Warn("Stale share from %v@%v", login, ip)
 		return false, false
 	}
 
 	if s.config.Proxy.Debug {
-		log.Printf("Difficulty pool/block/share = %d / %d / %d(%f) from %v@%v", shareDiff, t.Difficulty, shareDiffCalc, shareDiffFloat, login, ip)
+		logger.Debug("Difficulty pool/block/share = %d / %d / %d(%f) from %v@%v", shareDiff, t.Difficulty, shareDiffCalc, shareDiffFloat, login, ip)
 	}
 
 	// check share difficulty
@@ -93,9 +93,9 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 	if result.Big().Cmp(target) <= 0 {
 		ok, err := s.rpc().SubmitBlock(params)
 		if err != nil {
-			log.Printf("Block submission failure at height %v for %v: %v", h.height, t.Header, err)
+			logger.Error("Block submission failure at height %v for %v: %v", h.height, t.Header, err)
 		} else if !ok {
-			log.Printf("Block rejected at height %v for %v", h.height, t.Header)
+			logger.Error("Block rejected at height %v for %v", h.height, t.Header)
 			return false, false
 		} else {
 			s.fetchBlockTemplate()
@@ -104,11 +104,11 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 				return true, false
 			}
 			if err != nil {
-				log.Println("Failed to insert block candidate into backend:", err)
+				logger.Error("Failed to insert block candidate into backend: %v", err)
 			} else {
-				log.Printf("Inserted block %v to backend", h.height)
+				logger.Info("Inserted block %v to backend", h.height)
 			}
-			log.Printf("Block found by miner %v@%v at height %d", login, ip, h.height)
+			logger.Info("Block found by miner %v@%v at height %d", login, ip, h.height)
 		}
 	} else {
 		exist, err := s.backend.WriteShare(login, id, params, shareDiff, h.height, s.hashrateExpiration)
@@ -116,7 +116,7 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 			return true, false
 		}
 		if err != nil {
-			log.Println("Failed to insert share data into backend:", err)
+			logger.Error("Failed to insert share data into backend: %v", err)
 		}
 	}
 	return false, true

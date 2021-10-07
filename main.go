@@ -4,7 +4,7 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	"github.com/etclabscore/core-pool/util/logger"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -58,26 +58,27 @@ func readConfig(cfg *proxy.Config) {
 		configFileName = os.Args[1]
 	}
 	configFileName, _ = filepath.Abs(configFileName)
-	log.Printf("Loading config: %v", configFileName)
+	logger.Info("Loading config: %v", configFileName)
 
 	configFile, err := os.Open(configFileName)
 	if err != nil {
-		log.Fatal("File error: ", err.Error())
+		logger.Error("File error: %s", err.Error())
 	}
 	defer configFile.Close()
 	jsonParser := json.NewDecoder(configFile)
 	if err := jsonParser.Decode(&cfg); err != nil {
-		log.Fatal("Config error: ", err.Error())
+		logger.Error("Config error: %s", err.Error())
 	}
 }
 
 func main() {
 	readConfig(&cfg)
 	rand.Seed(time.Now().UnixNano())
+	logger.InitTimeLogger("./demo.log", "./demo_err.log", 7, 3600*24)
 
 	if cfg.Threads > 0 {
 		runtime.GOMAXPROCS(cfg.Threads)
-		log.Printf("Running with %v threads", cfg.Threads)
+		logger.Info("Running with %v threads", cfg.Threads)
 	}
 
 	startNewrelic()
@@ -85,9 +86,9 @@ func main() {
 	backend = storage.NewRedisClient(&cfg.Redis, cfg.Coin)
 	pong, err := backend.Check()
 	if err != nil {
-		log.Printf("Can't establish connection to backend: %v", err)
+		logger.Error("Can't establish connection to backend: %v", err)
 	} else {
-		log.Printf("Backend check reply: %v", pong)
+		logger.Info("Backend check reply: %v", pong)
 	}
 
 	if cfg.Proxy.Enabled {

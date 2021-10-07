@@ -1,7 +1,7 @@
 package proxy
 
 import (
-	"log"
+	"github.com/etclabscore/core-pool/util/logger"
 	"math/big"
 	"strconv"
 	"strings"
@@ -51,7 +51,7 @@ func (s *ProxyServer) fetchBlockTemplate() {
 	t := s.currentBlockTemplate()
 	reply, err := r.GetWork()
 	if err != nil {
-		log.Printf("Error while refreshing block template on %s: %s", r.Name, err)
+		logger.Error("Error while refreshing block template on %s: %v", r.Name, err)
 		return
 	}
 	// No need to update, we have fresh job
@@ -88,7 +88,7 @@ func (s *ProxyServer) fetchBlockTemplate() {
 		}
 	}
 	s.blockTemplate.Store(&newTemplate)
-	log.Printf("New block to mine on %s at height %d / %s / %d", r.Name, height, reply[0][0:10], diff)
+	logger.Info("New block to mine on %s at height %d / %s / %d", r.Name, height, reply[0][0:10], diff)
 
 	// Stratum
 	if s.config.Proxy.Stratum.Enabled {
