@@ -113,9 +113,9 @@
 
 	"logger": {
 		"logPath": "./demo.log",
-        "errLogPath": "./demo_err.log",
-        "saveDays": 7,
-        "cutInterval": 86400
+		"errLogPath": "./demo_err.log",
+		"saveDays": 7,
+		"cutInterval": 86400
 	},
 
 	"newrelicEnabled": false,

@@ -76,7 +76,10 @@ func readConfig(cfg *proxy.Config) {
 func main() {
 	readConfig(&cfg)
 	rand.Seed(time.Now().UnixNano())
-	logger.InitTimeLogger(cfg.Logger.LogPath, cfg.Logger.ErrLogPath, cfg.Logger.SaveDays, cfg.Logger.CutInterval)
+	err := logger.InitTimeLogger(cfg.Logger.LogPath, cfg.Logger.ErrLogPath, cfg.Logger.SaveDays, cfg.Logger.CutInterval)
+	if err != nil {
+		logger.Fatal("Loading logger config fail, err: %v", err)
+	}
 
 	if cfg.Threads > 0 {
 		runtime.GOMAXPROCS(cfg.Threads)

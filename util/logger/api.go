@@ -7,10 +7,10 @@ import (
 // 开箱即用api
 
 func init() {
-	err := InitTimeLogger("./demo.log", "./demo_err.log", 7, 3600)
-	if err != nil {
-		panic(err)
-	}
+	//err := InitTimeLogger("./demo.log", "./demo_err.log", 7, 3600)
+	//if err != nil {
+	//	panic(err)
+	//}
 }
 
 // 格式化调用信息

@@ -114,7 +114,7 @@ func (s *ProxyServer) handleTCPClient(cs *Session) error {
 			err = json.Unmarshal(data, &req)
 			if err != nil {
 				s.policy.ApplyMalformedPolicy(cs.ip)
-				logger.Error("Malformed stratum request from %s: %v", cs.ip, err)
+				logger.Error("Malformed stratum request from %s, err: %v, data: %v", cs.ip, err, data)
 				return err
 			}
 			s.setDeadline(cs.conn)
