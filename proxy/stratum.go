@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/etclabscore/core-pool/util/logger"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"strconv"
@@ -114,7 +113,7 @@ func (s *ProxyServer) handleTCPClient(cs *Session) error {
 			err = json.Unmarshal(data, &req)
 			if err != nil {
 				s.policy.ApplyMalformedPolicy(cs.ip)
-				logger.Error("Malformed stratum request from %s, err: %v, data: %v", cs.ip, err, data)
+				logger.Error("Malformed stratum request from %s, err: %v, data: %s", cs.ip, err, string(data))
 				return err
 			}
 			s.setDeadline(cs.conn)
@@ -153,7 +152,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		var params []string
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil || len(params) < 1 {
-			logger.Error("Malformed stratum request params from %s, params: %v", cs.ip, req.Params)
+			logger.Error("Malformed stratum request params from %s, params: %s", cs.ip, string(req.Params))
 			return err
 		}
 		reply, errReply := s.handleLoginRPC(cs, params, req.Worker)
@@ -161,7 +160,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 			return cs.sendTCPError(req.Id, errReply)
 		}
 		cs.setStratumMode("EthProxy")
-		log.Println("EthProxy login", cs.ip)
+		logger.Info("EthProxy login %s", cs.ip)
 		return cs.sendTCPResult(req.Id, reply)
 
 	case "mining.subscribe":
@@ -169,7 +168,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil || len(params) < 2 {
 			if cs.stratumMode() != Stratum2 {
-				logger.Error("Malformed stratum request params from %s, params: %v", cs.ip, req.Params)
+				logger.Error("Malformed stratum request params from %s, params: %s", cs.ip, string(req.Params))
 				return err
 			}
 			// always set session Id FIXME
@@ -197,7 +196,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		var params map[string]string
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil || len(params) < 2 {
-			logger.Error("Malformed stratum request params from %s, params: %v", cs.ip, req.Params)
+			logger.Error("Malformed stratum request params from %s, params: %s", cs.ip, string(req.Params))
 			return err
 		}
 
@@ -467,7 +466,7 @@ func (cs *Session) handleTCPMessage(s *ProxyServer, req *StratumReq) error {
 		var params []string
 		err := json.Unmarshal(req.Params, &params)
 		if err != nil || len(params) < 3 {
-			logger.Error("Malformed stratum request params from %s, params: %v", cs.ip, req.Params)
+			logger.Error("Malformed stratum request params from %s, params: %s", cs.ip, string(req.Params))
 			return err
 		}
 		reply, errReply := s.handleTCPSubmitRPC(cs, req.Worker, params)

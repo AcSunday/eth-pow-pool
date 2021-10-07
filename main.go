@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/etclabscore/core-pool/util/logger"
 	"math/rand"
 	"os"
@@ -60,16 +61,15 @@ func readConfig(cfg *proxy.Config) {
 		configFileName = os.Args[1]
 	}
 	configFileName, _ = filepath.Abs(configFileName)
-	logger.Info("Loading config: %v", configFileName)
 
 	configFile, err := os.Open(configFileName)
 	if err != nil {
-		logger.Error("File error: %s", err.Error())
+		panic(fmt.Sprintf("Open config file error: %s", err.Error()))
 	}
 	defer configFile.Close()
 	jsonParser := json.NewDecoder(configFile)
 	if err := jsonParser.Decode(&cfg); err != nil {
-		logger.Error("Config error: %s", err.Error())
+		panic(fmt.Sprintf("JSON decode config error: %s", err.Error()))
 	}
 }
 
@@ -80,6 +80,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Loading logger config fail, err: %v", err)
 	}
+	logger.Info("Loading config complete")
 
 	if cfg.Threads > 0 {
 		runtime.GOMAXPROCS(cfg.Threads)
