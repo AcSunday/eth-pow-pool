@@ -12,7 +12,7 @@ import (
 )
 
 var Ether = math.BigPow(10, 18)
-var Shannon = math.BigPow(10, 9)
+var Shannon = math.BigPow(10, 9) // 单位: GWei
 
 var pow256 = math.BigPow(2, 256)
 var addressPattern = regexp.MustCompile("^0x[0-9a-fA-F]{40}$")
