@@ -42,11 +42,11 @@ const (
 	minDepth = 16
 
 	// network常量
-	etcNetwork     = "classic"
-	mordorNetwork  = "mordor"
-	ethNetwork     = "ethereum"
-	ropstenNetwork = "ropsten"
-	ubqNetwork     = "ubiq"
+	EtcNetwork     = "classic"
+	MordorNetwork  = "mordor"
+	EthNetwork     = "ethereum"
+	RopstenNetwork = "ropsten"
+	UbiqNetwork    = "ubiq"
 )
 
 func NewBlockUnlocker(cfg *UnlockerConfig, backend *storage.RedisClient, network string) *BlockUnlocker {
@@ -54,21 +54,21 @@ func NewBlockUnlocker(cfg *UnlockerConfig, backend *storage.RedisClient, network
 	// configure any reward params if needed.
 	// 根据EIP方案，对齐分叉高度
 	switch network {
-	case etcNetwork:
+	case EtcNetwork:
 		coinhash.CoinConf.Ecip1017FBlock = 5000000
 		coinhash.CoinConf.Ecip1017EraRounds = big.NewInt(5000000)
-	case mordorNetwork:
+	case MordorNetwork:
 		coinhash.CoinConf.Ecip1017FBlock = 0
 		coinhash.CoinConf.Ecip1017EraRounds = big.NewInt(2000000)
-	case ethNetwork:
+	case EthNetwork:
 		coinhash.CoinConf.ByzantiumHardForkHeight = big.NewInt(4370000)
 		coinhash.CoinConf.ConstantinopleHardForkHeight = big.NewInt(7280000)
 		coinhash.CoinConf.LondonHardForkHeight = big.NewInt(12965000)
-	case ropstenNetwork:
+	case RopstenNetwork:
 		coinhash.CoinConf.ByzantiumHardForkHeight = big.NewInt(1700000)
 		coinhash.CoinConf.ConstantinopleHardForkHeight = big.NewInt(4230000)
 		coinhash.CoinConf.LondonHardForkHeight = big.NewInt(10499401)
-	case ubqNetwork:
+	case UbiqNetwork:
 		// nothing needs configuring here, simply proceed.
 		break
 	default:
@@ -247,7 +247,7 @@ func (u *BlockUnlocker) handleBlock(block *rpc.GetBlockReply, candidate *storage
 	}
 	candidate.Height = correctHeight
 	var reward = big.NewInt(0)
-	if u.config.Network == etcNetwork || u.config.Network == mordorNetwork {
+	if u.config.Network == EtcNetwork || u.config.Network == MordorNetwork {
 		era := GetBlockEra(big.NewInt(candidate.Height), coinhash.CoinConf.Ecip1017EraRounds)
 		reward = coinhash.GetConstReward(era)
 		// Add reward for including uncles
@@ -255,14 +255,14 @@ func (u *BlockUnlocker) handleBlock(block *rpc.GetBlockReply, candidate *storage
 		rewardForUncles := big.NewInt(0).Mul(uncleReward, big.NewInt(int64(len(block.Uncles))))
 		reward.Add(reward, rewardForUncles)
 
-	} else if u.config.Network == ubqNetwork {
+	} else if u.config.Network == UbiqNetwork {
 		reward = coinhash.GetConstRewardUbiq(candidate.Height)
 		// Add reward for including uncles
 		uncleReward := new(big.Int).Div(reward, coinhash.Big32)
 		rewardForUncles := big.NewInt(0).Mul(uncleReward, big.NewInt(int64(len(block.Uncles))))
 		reward.Add(reward, rewardForUncles)
 
-	} else if u.config.Network == ethNetwork || u.config.Network == ropstenNetwork {
+	} else if u.config.Network == EthNetwork || u.config.Network == RopstenNetwork {
 		reward = coinhash.GetConstRewardEthereum(candidate.Height, block)
 		// Add reward for including uncles
 		uncleReward := new(big.Int).Div(reward, coinhash.Big32)
@@ -295,18 +295,18 @@ func handleUncle(height int64, uncle *rpc.GetBlockReply, candidate *storage.Bloc
 		return err
 	}
 	var reward = big.NewInt(0)
-	if cfg.Network == etcNetwork || cfg.Network == mordorNetwork {
+	if cfg.Network == EtcNetwork || cfg.Network == MordorNetwork {
 		era := GetBlockEra(big.NewInt(height), coinhash.CoinConf.Ecip1017EraRounds)
 		reward = coinhash.GetUncleReward(
 			new(big.Int).SetInt64(uncleHeight), new(big.Int).SetInt64(height), era, coinhash.GetConstReward(era))
-	} else if cfg.Network == ubqNetwork {
+	} else if cfg.Network == UbiqNetwork {
 		reward = coinhash.GetUncleRewardUbiq(
 			new(big.Int).SetInt64(uncleHeight), new(big.Int).SetInt64(height), coinhash.GetConstRewardUbiq(height))
-	} else if cfg.Network == ethNetwork || cfg.Network == ropstenNetwork {
+	} else if cfg.Network == EthNetwork || cfg.Network == RopstenNetwork {
 		reward = coinhash.GetUncleRewardEthereum(
 			new(big.Int).SetInt64(uncleHeight),
 			new(big.Int).SetInt64(height),
-			coinhash.GetConstRewardUbiq(height),
+			coinhash.GetStaticBlockRewardForETH(new(big.Int).SetInt64(height)),
 		)
 	}
 	candidate.Height = height

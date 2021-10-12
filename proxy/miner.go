@@ -1,15 +1,16 @@
 package proxy
 
 import (
-	"github.com/etclabscore/core-pool/util/logger"
 	"math/big"
 	"strconv"
 	"strings"
 
-	"github.com/etclabscore/go-etchash"
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/etclabscore/core-pool/util"
+	"github.com/etclabscore/core-pool/payouts"
+	"github.com/etclabscore/core-pool/util/logger"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/etclabscore/go-etchash"
 )
 
 var (
@@ -22,14 +23,14 @@ var (
 
 func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, params []string, stratum bool) (bool, bool) {
 	if hasher == nil {
-		if s.config.Network == "classic" {
+		if s.config.Network == payouts.EtcNetwork {
 			hasher = etchash.New(&ecip1099FBlockClassic, nil)
-		} else if s.config.Network == "mordor" {
+		} else if s.config.Network == payouts.MordorNetwork {
 			hasher = etchash.New(&ecip1099FBlockMordor, nil)
-		} else if s.config.Network == "ubiq" {
+		} else if s.config.Network == payouts.UbiqNetwork {
 			hasher = etchash.New(nil, &uip1FEpoch)
-		} else if s.config.Network == "ethereum" || s.config.Network == "ropsten" {
-			hasher = etchash.New(nil, nil)
+		} else if s.config.Network == payouts.EthNetwork || s.config.Network == payouts.RopstenNetwork {
+			hasher = etchash.New(&ecip1099FBlockClassic, nil)
 		} else {
 			// unknown network
 			logger.Error("Unknown network configuration %s", s.config.Network)

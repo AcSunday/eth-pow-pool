@@ -24,24 +24,32 @@ var (
 
 // 计算某个区块的燃烧费用，伦敦硬分叉后新增燃烧费用
 func CalcLondonBurntFees(block *rpc.GetBlockReply) (BurntFees *big.Int) {
+	// 计算公式 burntFees = baseFeePerGas * gasUsed
 	baseFeePerGas := util.String2Big(block.BaseFeePerGas)
 	gasUsed := util.String2Big(block.GasUsed)
 	BurntFees = new(big.Int).Mul(baseFeePerGas, gasUsed)
 	return
 }
 
-// ethash 正常区块奖励计算
-func GetConstRewardEthereum(height int64, block *rpc.GetBlockReply) *big.Int {
+// 获取ETH静态区块奖励
+//  headerNumber指区块高度
+func GetStaticBlockRewardForETH(headerNumber *big.Int) *big.Int {
 	// Select the correct block reward based on chain progression
 	blockReward := FrontierBlockReward
-	headerNumber := big.NewInt(height)
 	if CoinConf.ByzantiumHardForkHeight.Cmp(headerNumber) <= 0 { // 拜占庭硬分叉区块奖励变更
 		blockReward = ByzantiumBlockReward
 	}
 	if CoinConf.ConstantinopleHardForkHeight.Cmp(headerNumber) <= 0 { // 君士坦丁堡硬分叉区块奖励变更
 		blockReward = ConstantinopleBlockReward
 	}
-	if CoinConf.LondonHardForkHeight.Cmp(headerNumber) <= 0 { // 伦敦硬分叉，计算燃烧费用
+	return blockReward
+}
+
+// ethash 正常区块奖励计算
+func GetConstRewardEthereum(height int64, block *rpc.GetBlockReply) *big.Int {
+	headerNumber := big.NewInt(height)
+	blockReward := GetStaticBlockRewardForETH(headerNumber)
+	if CoinConf.LondonHardForkHeight.Cmp(headerNumber) <= 0 { // 伦敦硬分叉，计算燃烧费用(块奖励 减去 燃烧数量)
 		burntFees := CalcLondonBurntFees(block)
 		blockReward = new(big.Int).Sub(blockReward, burntFees)
 	}
