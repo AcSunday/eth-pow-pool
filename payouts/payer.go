@@ -2,18 +2,20 @@ package payouts
 
 import (
 	"fmt"
-	"github.com/etclabscore/core-pool/util/logger"
 	"math/big"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-
 	"github.com/etclabscore/core-pool/rpc"
 	"github.com/etclabscore/core-pool/storage"
 	"github.com/etclabscore/core-pool/util"
+	"github.com/etclabscore/core-pool/util/logger"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
+
+// 支付模块
 
 const txCheckInterval = 5 * time.Second
 
@@ -59,6 +61,7 @@ func NewPayoutsProcessor(cfg *PayoutsConfig, backend *storage.RedisClient) *Payo
 func (u *PayoutsProcessor) Start() {
 	logger.Info("Starting payouts")
 
+	// 检查是否需要进入维护模式
 	if u.mustResolvePayout() {
 		logger.Warn("Running with env RESOLVE_PAYOUT=1, now trying to resolve locked payouts")
 		u.resolvePayouts()
@@ -70,6 +73,7 @@ func (u *PayoutsProcessor) Start() {
 	timer := time.NewTimer(intv)
 	logger.Info("Set payouts interval to %v", intv)
 
+	// 检查之前是否有支付失败的记录
 	payments := u.backend.GetPendingPayments()
 	if len(payments) > 0 {
 		logger.Error("Previous payout failed, you have to resolve it. List of failed payments: %v",
@@ -77,6 +81,7 @@ func (u *PayoutsProcessor) Start() {
 		return
 	}
 
+	// 检查支付模块是否被锁，被锁则不能运行支付模块
 	locked, err := u.backend.IsPayoutsLocked()
 	if err != nil {
 		logger.Error("Unable to start payouts: %v", err)
@@ -103,7 +108,7 @@ func (u *PayoutsProcessor) Start() {
 }
 
 func (u *PayoutsProcessor) process() {
-	if u.halt {
+	if u.halt { // 检查上一次错误
 		logger.Error("Payments suspended due to last critical error: %v", u.lastFail)
 		return
 	}
@@ -116,23 +121,36 @@ func (u *PayoutsProcessor) process() {
 		return
 	}
 
+	// 循环从backend拿到的所有需要支付的记录，并处理(tips: login是钱包地址)
 	for _, login := range payees {
-		amount, _ := u.backend.GetBalance(login)
+		amount, err := u.backend.GetBalance(login)
+		if err != nil {
+			err = fmt.Errorf("Get %s balance fail, from backend err: %v", login, err)
+			logger.Error(err.Error())
+			u.halt = true
+			u.lastFail = err
+			break
+		}
 		amountInShannon := big.NewInt(amount)
 
 		// Shannon^2 = Wei
 		amountInWei := new(big.Int).Mul(amountInShannon, util.Shannon)
 
+		// 校验该地址是否满足支付条件
 		if !u.reachedThreshold(amountInShannon) {
+			logger.Info("miner %s does not meet the minimum payment, miner has %s GWei, min need %v GWei",
+				login, amountInShannon.String(), u.config.Threshold)
 			continue
 		}
 		mustPay++
 
 		// Require active peers before processing
+		// 检查钱包连上的节点数是否满足
 		if !u.checkPeers() {
 			break
 		}
 		// Require unlocked account
+		// 检查付款账户是否处于解锁状态(内部实现是签名操作)
 		if !u.isUnlockedAccount() {
 			break
 		}
@@ -140,11 +158,13 @@ func (u *PayoutsProcessor) process() {
 		// Check if we have enough funds
 		poolBalance, err := u.rpc.GetBalance(u.config.Address)
 		if err != nil {
+			err = fmt.Errorf("Get pool balance failed, err: %v", err)
+			logger.Error(err.Error())
 			u.halt = true
 			u.lastFail = err
 			break
 		}
-		if poolBalance.Cmp(amountInWei) < 0 {
+		if poolBalance.Cmp(amountInWei) < 0 { // 检查pool余额是否足够支付
 			err := fmt.Errorf("Not enough balance for payment, need %s Wei, pool has %s Wei",
 				amountInWei.String(), poolBalance.String())
 			logger.Error(err.Error())
@@ -156,7 +176,8 @@ func (u *PayoutsProcessor) process() {
 		// Lock payments for current payout
 		err = u.backend.LockPayouts(login, amount)
 		if err != nil {
-			logger.Error("Failed to lock payment for %s: %v", login, err)
+			err = fmt.Errorf("Failed to lock payment for %s: %v", login, err)
+			logger.Error(err.Error())
 			u.halt = true
 			u.lastFail = err
 			break
@@ -166,7 +187,8 @@ func (u *PayoutsProcessor) process() {
 		// Debit miner's balance and update stats
 		err = u.backend.UpdateBalance(login, amount)
 		if err != nil {
-			logger.Error("Failed to update balance for %s, %v Shannon: %v", login, amount, err)
+			err = fmt.Errorf("Failed to update balance for %s, %v Shannon: %v", login, amount, err)
+			logger.Error(err.Error())
 			u.halt = true
 			u.lastFail = err
 			break
@@ -175,17 +197,20 @@ func (u *PayoutsProcessor) process() {
 		value := hexutil.EncodeBig(amountInWei)
 		txHash, err := u.rpc.SendTransaction(u.config.Address, login, u.config.GasHex(), u.config.GasPriceHex(), value, u.config.AutoGas)
 		if err != nil {
-			logger.Error("Failed to send payment to %s, %v Shannon: %v. Check outgoing tx for %s in block explorer and docs/PAYOUTS.md",
+			err = fmt.Errorf("Failed to send payment to %s, %v Shannon: %v. Check outgoing tx for %s in block explorer and docs/PAYOUTS.md",
 				login, amount, err, login)
+			logger.Error(err.Error())
 			u.halt = true
 			u.lastFail = err
 			break
 		}
 
 		// Log transaction hash
+		// 将该笔支付写入backend持久化
 		err = u.backend.WritePayment(login, txHash, amount)
 		if err != nil {
-			logger.Error("Failed to log payment data for %s, %v Shannon, tx: %s: %v", login, amount, txHash, err)
+			err = fmt.Errorf("Failed to log payment data for %s, %v Shannon, tx: %s: %v", login, amount, txHash, err)
+			logger.Error(err.Error())
 			u.halt = true
 			u.lastFail = err
 			break
@@ -196,6 +221,7 @@ func (u *PayoutsProcessor) process() {
 		logger.Info("Paid %v Shannon to %v, TxHash: %v", amount, login, txHash)
 
 		// Wait for TX confirmation before further payouts
+		// 在支付新的交易之前，先等待当前交易确认
 		for {
 			logger.Info("Waiting for tx confirmation: %v", txHash)
 			time.Sleep(txCheckInterval)
@@ -228,6 +254,7 @@ func (u *PayoutsProcessor) process() {
 	}
 }
 
+// 钱包账户签名（用于判断钱包地址是否解锁）
 func (self PayoutsProcessor) isUnlockedAccount() bool {
 	_, err := self.rpc.Sign(self.config.Address, "0x0")
 	if err != nil {
@@ -237,6 +264,7 @@ func (self PayoutsProcessor) isUnlockedAccount() bool {
 	return true
 }
 
+// 钱包连接的节点数量检查（用于保证交易确认成功率与速度）
 func (self PayoutsProcessor) checkPeers() bool {
 	n, err := self.rpc.GetPeerCount()
 	if err != nil {
@@ -250,6 +278,7 @@ func (self PayoutsProcessor) checkPeers() bool {
 	return true
 }
 
+// 判断是否满足支付的最小值
 func (self PayoutsProcessor) reachedThreshold(amount *big.Int) bool {
 	return big.NewInt(self.config.Threshold).Cmp(amount) < 0
 }
@@ -262,6 +291,7 @@ func formatPendingPayments(list []*storage.PendingPayment) string {
 	return s
 }
 
+// 持久化支付数据
 func (self PayoutsProcessor) bgSave() {
 	result, err := self.backend.BgSave()
 	if err != nil {
@@ -271,6 +301,7 @@ func (self PayoutsProcessor) bgSave() {
 	logger.Info("Saving backend state to disk: %s", result)
 }
 
+// 解决支付问题处理
 func (self PayoutsProcessor) resolvePayouts() {
 	payments := self.backend.GetPendingPayments()
 
@@ -300,6 +331,9 @@ func (self PayoutsProcessor) resolvePayouts() {
 	logger.Info("Payouts unlocked")
 }
 
+// 维护模式: 根据系统环境变量RESOLVE_PAYOUT，判断是否必须要解决支付问题
+//  RESOLVE_PAYOUT=1 或 RESOLVE_PAYOUT=0
+//  tips: 为1时必须解决，0则不用
 func (self PayoutsProcessor) mustResolvePayout() bool {
 	v, _ := strconv.ParseBool(os.Getenv("RESOLVE_PAYOUT"))
 	return v

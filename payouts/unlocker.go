@@ -317,7 +317,7 @@ func handleUncle(height int64, uncle *rpc.GetBlockReply, candidate *storage.Bloc
 	return nil
 }
 
-// 解锁待办区块
+// 解锁待办（未成熟）区块
 func (u *BlockUnlocker) unlockPendingBlocks() {
 	if u.halt {
 		logger.Error("Unlocking suspended due to last critical error: %v", u.lastFail)
@@ -417,7 +417,7 @@ func (u *BlockUnlocker) unlockPendingBlocks() {
 	)
 }
 
-//
+// 解锁成熟的块
 func (u *BlockUnlocker) unlockAndCreditMiners() {
 	if u.halt {
 		logger.Error("Unlocking suspended due to last critical error: %v", u.lastFail)
