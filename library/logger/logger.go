@@ -19,6 +19,7 @@ import (
 // Logger对象功能集
 
 var (
+	DEBUG bool
 	// zap的Logger对象
 	SugarLogger *zap.SugaredLogger
 
@@ -33,9 +34,9 @@ var (
 // 初始化Logger日志对象 文件按时间间隔切割
 //  filepath, errFilePath info与err文件路径, saveDays 保存最近几(天)的文件, cutInterval 切割时间间隔(秒)
 func InitTimeLogger(filepath, errFilePath string, saveDays, cutInterval time.Duration) (err error) {
-	//if SugarLogger != nil {
-	//	return errors.New("Logger object has been initialized. ")
-	//}
+	if SugarLogger != nil {
+		return errors.New("Logger object has been initialized. ")
+	}
 
 	encoder := getEncoder()
 	// 区分info日志文件与 err日志文件
@@ -104,7 +105,7 @@ func getTimeDivisionWriter(filepath string, saveDays, cutInterval time.Duration)
 	)
 
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("logger: TimeDivisionWriter init failed, err: %s", err.Error()))
 	}
 	return hook
 }

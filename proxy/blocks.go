@@ -1,16 +1,17 @@
 package proxy
 
 import (
-	"github.com/etclabscore/core-pool/util/logger"
 	"math/big"
 	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/common"
-
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/rpc"
 	"github.com/etclabscore/core-pool/util"
+
+	lCommon "github.com/etclabscore/core-pool/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const maxBacklog = 3
@@ -92,6 +93,9 @@ func (s *ProxyServer) fetchBlockTemplate() {
 
 	// Stratum
 	if s.config.Proxy.Stratum.Enabled {
-		go s.broadcastNewJobs()
+		lCommon.RoutineGroup.GoRecover(func() error {
+			s.broadcastNewJobs()
+			return nil
+		})
 	}
 }

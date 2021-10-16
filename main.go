@@ -3,112 +3,45 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"github.com/etclabscore/core-pool/util/logger"
-	"math/rand"
-	"os"
-	"path/filepath"
-	"runtime"
-	"time"
-
-	"github.com/yvasiyarov/gorelic"
-
-	"github.com/etclabscore/core-pool/api"
-	"github.com/etclabscore/core-pool/payouts"
+	"github.com/etclabscore/core-pool/common"
+	"github.com/etclabscore/core-pool/library/clean"
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/proxy"
 	"github.com/etclabscore/core-pool/storage"
 )
 
 var (
-	cfg     proxy.Config
-	backend *storage.RedisClient
+	cfg         proxy.Config
+	backend     *storage.RedisClient
+	runLevelMap = map[string]bool{
+		"production": false,
+		"testing":    false,
+		"dev":        true,
+	}
 )
 
-func startProxy() {
-	s := proxy.NewProxy(&cfg, backend)
-	s.Start()
-}
-
-func startApi() {
-	s := api.NewApiServer(&cfg.Api, backend)
-	s.Start()
-}
-
-func startBlockUnlocker() {
-	u := payouts.NewBlockUnlocker(&cfg.BlockUnlocker, backend, cfg.Network)
-	u.Start()
-}
-
-func startPayoutsProcessor() {
-	u := payouts.NewPayoutsProcessor(&cfg.Payouts, backend)
-	u.Start()
-}
-
-func startNewrelic() {
-	if cfg.NewrelicEnabled {
-		nr := gorelic.NewAgent()
-		nr.Verbose = cfg.NewrelicVerbose
-		nr.NewrelicLicense = cfg.NewrelicKey
-		nr.NewrelicName = cfg.NewrelicName
-		nr.Run()
-	}
-}
-
-func readConfig(cfg *proxy.Config) {
-	configFileName := "config.json"
-	if len(os.Args) > 1 {
-		configFileName = os.Args[1]
-	}
-	configFileName, _ = filepath.Abs(configFileName)
-
-	configFile, err := os.Open(configFileName)
-	if err != nil {
-		panic(fmt.Sprintf("Open config file error: %s", err.Error()))
-	}
-	defer configFile.Close()
-	jsonParser := json.NewDecoder(configFile)
-	if err := jsonParser.Decode(&cfg); err != nil {
-		panic(fmt.Sprintf("JSON decode config error: %s", err.Error()))
-	}
-}
-
 func main() {
-	readConfig(&cfg)
-	rand.Seed(time.Now().UnixNano())
-	err := logger.InitTimeLogger(cfg.Logger.LogPath, cfg.Logger.ErrLogPath, cfg.Logger.SaveDays, cfg.Logger.CutInterval)
-	if err != nil {
-		logger.Fatal("Loading logger config fail, err: %v", err)
-	}
-	logger.Info("Loading config complete")
-
-	if cfg.Threads > 0 {
-		runtime.GOMAXPROCS(cfg.Threads)
-		logger.Info("Running with %v threads", cfg.Threads)
-	}
-
+	Init()
 	startNewrelic()
 
+	// 启动redis
 	backend = storage.NewRedisClient(&cfg.Redis, cfg.Coin)
 	pong, err := backend.Check()
 	if err != nil {
-		logger.Error("Can't establish connection to backend: %v", err)
-	} else {
-		logger.Info("Backend check reply: %v", pong)
+		logger.Fatal("Can't establish connection to backend: %v", err)
 	}
+	logger.Info("Backend check reply: %v", pong)
 
-	if cfg.Proxy.Enabled {
-		go startProxy()
+	// 启动模块 proxy, api, unlocker, payer
+	// start会校验配置文件，检测该服务是否需要开启
+	go startProxy()
+	go startApi()
+	go startBlockUnlocker()
+	go startPayoutsProcessor()
+
+	// 等待goroutine group退出
+	if err := common.RoutineGroup.Wait(); err != nil {
+		logger.Error("Wait goroutine group failed, err: %s", err.Error())
 	}
-	if cfg.Api.Enabled {
-		go startApi()
-	}
-	if cfg.BlockUnlocker.Enabled {
-		go startBlockUnlocker()
-	}
-	if cfg.Payouts.Enabled {
-		go startPayoutsProcessor()
-	}
-	quit := make(chan bool)
-	<-quit
+	clean.Exit()
 }

@@ -1,9 +1,10 @@
 package test
 
 import (
-	"github.com/etclabscore/core-pool/util/logger"
 	"net/http"
 	"testing"
+
+	"github.com/etclabscore/core-pool/library/logger"
 )
 
 func simpleHttpGet(url string) {

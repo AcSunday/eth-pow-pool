@@ -10,6 +10,8 @@ import (
 
 type Config struct {
 	Name                  string        `json:"name"`
+	RunLevel              string        `json:"runlevel"`
+	MaxRoutine            int           `json:"maxRoutine"`
 	Proxy                 Proxy         `json:"proxy"`
 	Api                   api.ApiConfig `json:"api"`
 	Upstream              []Upstream    `json:"upstream"`
@@ -47,7 +49,6 @@ type Proxy struct {
 
 	MaxFails    int64 `json:"maxFails"`
 	HealthCheck bool  `json:"healthCheck"`
-	Debug       bool  `json:"debug"`
 
 	Stratum Stratum `json:"stratum"`
 }

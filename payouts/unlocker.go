@@ -7,11 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/etclabscore/core-pool/common"
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/payouts/coinhash"
 	"github.com/etclabscore/core-pool/rpc"
 	"github.com/etclabscore/core-pool/storage"
 	"github.com/etclabscore/core-pool/util"
-	"github.com/etclabscore/core-pool/util/logger"
 )
 
 // ETH 算法类区块解锁器
@@ -102,16 +103,19 @@ func (u *BlockUnlocker) Start() {
 	u.unlockAndCreditMiners()
 	timer.Reset(intv)
 
-	go func() {
+	common.RoutineGroup.GoRecover(func() error {
 		for {
 			select {
+			case <-common.RoutineCtx.Done():
+				logger.Info("Stopping unlocker working module")
+				return nil
 			case <-timer.C:
 				u.unlockPendingBlocks()
 				u.unlockAndCreditMiners()
 				timer.Reset(intv)
 			}
 		}
-	}()
+	})
 }
 
 type UnlockResult struct {

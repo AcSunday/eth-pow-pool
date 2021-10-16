@@ -1,11 +1,13 @@
 package payouts
 
 import (
-	"github.com/etclabscore/core-pool/rpc"
-	"github.com/etclabscore/core-pool/storage"
 	"math/big"
 	"os"
 	"testing"
+
+	"github.com/etclabscore/core-pool/payouts/coinhash"
+	"github.com/etclabscore/core-pool/rpc"
+	"github.com/etclabscore/core-pool/storage"
 )
 
 func TestMain(m *testing.M) {
@@ -89,27 +91,27 @@ func TestGetBlockEra(t *testing.T) {
 func TestGetBlockWinnerRewardByEra(t *testing.T) {
 	baseReward := big.NewInt(5000000000000000000)
 	era := big.NewInt(0)
-	blockReward := GetBlockWinnerRewardByEra(era, baseReward)
+	blockReward := coinhash.GetBlockWinnerRewardByEra(era, baseReward)
 	if blockReward.Cmp(big.NewInt(5000000000000000000)) != 0 {
 		t.Error("Should return blockReward 5000000000000000000", "reward", blockReward)
 	}
 	era = big.NewInt(1)
-	blockReward = GetBlockWinnerRewardByEra(era, baseReward)
+	blockReward = coinhash.GetBlockWinnerRewardByEra(era, baseReward)
 	if blockReward.Cmp(big.NewInt(4000000000000000000)) != 0 {
 		t.Error("Should return blockReward 4000000000000000000", "reward", blockReward)
 	}
 	era = big.NewInt(2)
-	blockReward = GetBlockWinnerRewardByEra(era, baseReward)
+	blockReward = coinhash.GetBlockWinnerRewardByEra(era, baseReward)
 	if blockReward.Cmp(big.NewInt(3200000000000000000)) != 0 {
 		t.Error("Should return blockReward 3200000000000000000", "reward", blockReward)
 	}
 	era = big.NewInt(3)
-	blockReward = GetBlockWinnerRewardByEra(era, baseReward)
+	blockReward = coinhash.GetBlockWinnerRewardByEra(era, baseReward)
 	if blockReward.Cmp(big.NewInt(2560000000000000000)) != 0 {
 		t.Error("Should return blockReward 2560000000000000000", "reward", blockReward)
 	}
 	era = big.NewInt(4)
-	blockReward = GetBlockWinnerRewardByEra(era, baseReward)
+	blockReward = coinhash.GetBlockWinnerRewardByEra(era, baseReward)
 	if blockReward.Cmp(big.NewInt(2048000000000000000)) != 0 {
 		t.Error("Should return blockReward 2048000000000000000", "reward", blockReward)
 	}
@@ -117,22 +119,22 @@ func TestGetBlockWinnerRewardByEra(t *testing.T) {
 
 func TestGetRewardForUncle(t *testing.T) {
 	baseReward := big.NewInt(4000000000000000000)
-	uncleReward := getRewardForUncle(baseReward)
+	uncleReward := coinhash.GetRewardForUncle(baseReward)
 	if uncleReward.Cmp(big.NewInt(125000000000000000)) != 0 {
 		t.Error("Should return uncleReward 125000000000000000", "reward", uncleReward)
 	}
 	baseReward = big.NewInt(3200000000000000000)
-	uncleReward = getRewardForUncle(baseReward)
+	uncleReward = coinhash.GetRewardForUncle(baseReward)
 	if uncleReward.Cmp(big.NewInt(100000000000000000)) != 0 {
 		t.Error("Should return uncleReward 100000000000000000", "reward", uncleReward)
 	}
 	baseReward = big.NewInt(2560000000000000000)
-	uncleReward = getRewardForUncle(baseReward)
+	uncleReward = coinhash.GetRewardForUncle(baseReward)
 	if uncleReward.Cmp(big.NewInt(80000000000000000)) != 0 {
 		t.Error("Should return uncleReward 80000000000000000", "reward", uncleReward)
 	}
 	baseReward = big.NewInt(2048000000000000000)
-	uncleReward = getRewardForUncle(baseReward)
+	uncleReward = coinhash.GetRewardForUncle(baseReward)
 	if uncleReward.Cmp(big.NewInt(64000000000000000)) != 0 {
 		t.Error("Should return uncleReward 64000000000000000", "reward", uncleReward)
 	}

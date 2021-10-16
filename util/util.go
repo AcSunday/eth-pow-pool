@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 )
 
-var Ether = math.BigPow(10, 18)
+var Ether = math.BigPow(10, 18)  // 单位: ETH
 var Shannon = math.BigPow(10, 9) // 单位: GWei
 
 var pow256 = math.BigPow(2, 256)
@@ -67,6 +67,7 @@ func StringInSlice(a string, list []string) bool {
 	return false
 }
 
+// 必须将string解析为Duration
 func MustParseDuration(s string) time.Duration {
 	value, err := time.ParseDuration(s)
 	if err != nil {

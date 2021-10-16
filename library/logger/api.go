@@ -22,8 +22,10 @@ func formatCaller(s string) string {
 
 // Debug级别日志
 func Debug(s string, args ...interface{}) {
-	s = formatCaller(s)
-	SugarLogger.Debugf(s, args...)
+	if DEBUG {
+		s = formatCaller(s)
+		SugarLogger.Debugf(s, args...)
+	}
 }
 
 // Info级别日志

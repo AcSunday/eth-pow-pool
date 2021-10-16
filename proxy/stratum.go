@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/etclabscore/core-pool/util/logger"
 	"io"
 	"math/rand"
 	"net"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/etclabscore/core-pool/common"
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/util"
 )
 
@@ -34,7 +35,7 @@ func (s *ProxyServer) ListenTCP() {
 	var err error
 	var server net.Listener
 	setKeepAlive := func(net.Conn) {}
-	if s.config.Proxy.Stratum.TLS {
+	if s.config.Proxy.Stratum.TLS { // 走证书加密通信
 		var cert tls.Certificate
 		cert, err = tls.LoadX509KeyPair(s.config.Proxy.Stratum.CertFile, s.config.Proxy.Stratum.KeyFile)
 		if err != nil {
@@ -42,14 +43,14 @@ func (s *ProxyServer) ListenTCP() {
 		}
 		tlsCfg := &tls.Config{Certificates: []tls.Certificate{cert}}
 		server, err = tls.Listen("tcp", s.config.Proxy.Stratum.Listen, tlsCfg)
-	} else {
+	} else { // 不走证书
 		server, err = net.Listen("tcp", s.config.Proxy.Stratum.Listen)
 		setKeepAlive = func(conn net.Conn) {
 			conn.(*net.TCPConn).SetKeepAlive(true)
 		}
 	}
 	if err != nil {
-		logger.Fatal("Error: %v", err)
+		logger.Fatal("Listen stratum port error: %v", err)
 	}
 	defer server.Close()
 
@@ -78,14 +79,14 @@ func (s *ProxyServer) ListenTCP() {
 		cs.staleJobs = make(map[string]staleJob)
 
 		accept <- n
-		go func(cs *Session) {
-			err = s.handleTCPClient(cs)
-			if err != nil {
+		common.RoutineGroup.Go(func() error {
+			if err = s.handleTCPClient(cs); err != nil {
 				s.removeSession(cs)
 				conn.Close()
 			}
 			<-accept
-		}(cs)
+			return nil
+		})
 	}
 }
 
@@ -730,8 +731,9 @@ func (s *ProxyServer) broadcastNewJobs() {
 		n++
 		bcast <- n
 
-		go func(cs *Session) {
-			err := cs.pushNewJob(s, &reply)
+		var cs = m
+		common.RoutineGroup.Go(func() (err error) {
+			err = cs.pushNewJob(s, &reply)
 			<-bcast
 			if err != nil {
 				logger.Error("Job transmit error to %s@%s: %v", cs.login, cs.ip, err)
@@ -739,7 +741,8 @@ func (s *ProxyServer) broadcastNewJobs() {
 			} else {
 				s.setDeadline(cs.conn)
 			}
-		}(m)
+			return nil
+		})
 	}
 	logger.Info("Jobs broadcast finished %s", time.Since(start))
 }

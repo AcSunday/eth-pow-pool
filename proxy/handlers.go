@@ -1,10 +1,10 @@
 package proxy
 
 import (
-	"github.com/etclabscore/core-pool/util/logger"
 	"regexp"
 	"strings"
 
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/rpc"
 	"github.com/etclabscore/core-pool/util"
 )
@@ -98,9 +98,7 @@ func (s *ProxyServer) handleSubmitRPC(cs *Session, login, id string, params []st
 		}
 		return false, nil
 	}
-	if s.config.Proxy.Debug {
-		logger.Debug("Valid share from %s@%s", login, cs.ip)
-	}
+	logger.Debug("Valid share from %s@%s", login, cs.ip)
 
 	if !ok {
 		return true, &ErrorReply{Code: -1, Message: "High rate of invalid shares"}

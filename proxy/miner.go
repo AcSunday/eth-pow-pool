@@ -5,12 +5,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/etclabscore/core-pool/util"
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/payouts"
-	"github.com/etclabscore/core-pool/util/logger"
+	"github.com/etclabscore/core-pool/util"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/etclabscore/go-etchash"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -23,23 +23,27 @@ var (
 
 func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, params []string, stratum bool) (bool, bool) {
 	if hasher == nil {
-		if s.config.Network == payouts.EtcNetwork {
+		switch s.config.Network {
+		case payouts.EtcNetwork:
 			hasher = etchash.New(&ecip1099FBlockClassic, nil)
-		} else if s.config.Network == payouts.MordorNetwork {
+		case payouts.MordorNetwork:
 			hasher = etchash.New(&ecip1099FBlockMordor, nil)
-		} else if s.config.Network == payouts.UbiqNetwork {
+		case payouts.UbiqNetwork:
 			hasher = etchash.New(nil, &uip1FEpoch)
-		} else if s.config.Network == payouts.EthNetwork || s.config.Network == payouts.RopstenNetwork {
+		case payouts.EthNetwork, payouts.RopstenNetwork:
 			hasher = etchash.New(&ecip1099FBlockClassic, nil)
-		} else {
+		default:
 			// unknown network
 			logger.Error("Unknown network configuration %s", s.config.Network)
 			return false, false
 		}
 	}
-	nonceHex := params[0]
-	hashNoNonce := params[1]
-	mixDigest := params[2]
+
+	if len(params) != 3 {
+		logger.Warn("Shared length params must be 3, params: %v", params)
+		return false, false
+	}
+	nonceHex, hashNoNonce, mixDigest := params[0], params[1], params[2]
 	nonce, _ := strconv.ParseUint(strings.Replace(nonceHex, "0x", "", -1), 16, 64)
 	shareDiff := s.config.Proxy.Difficulty
 
@@ -79,9 +83,7 @@ func (s *ProxyServer) processShare(login, id, ip string, t *BlockTemplate, param
 		return false, false
 	}
 
-	if s.config.Proxy.Debug {
-		logger.Debug("Difficulty pool/block/share = %d / %d / %d(%f) from %v@%v", shareDiff, t.Difficulty, shareDiffCalc, shareDiffFloat, login, ip)
-	}
+	logger.Debug("Difficulty pool/block/share = %d / %d / %d(%f) from %v@%v", shareDiff, t.Difficulty, shareDiffCalc, shareDiffFloat, login, ip)
 
 	// check share difficulty
 	shareTarget := new(big.Int).Div(maxUint256, big.NewInt(shareDiff))

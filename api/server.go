@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/etclabscore/core-pool/util/logger"
 	"net/http"
 	"sort"
 	"strings"
@@ -10,10 +9,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/mux"
-
+	"github.com/etclabscore/core-pool/common"
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/storage"
 	"github.com/etclabscore/core-pool/util"
+
+	"github.com/gorilla/mux"
 )
 
 type ApiConfig struct {
@@ -87,9 +88,12 @@ func (s *ApiServer) Start() {
 		s.collectStats()
 	}
 
-	go func() {
+	common.RoutineGroup.GoRecover(func() error {
 		for {
 			select {
+			case <-common.RoutineCtx.Done():
+				logger.Info("Stopping collect stats worker")
+				return nil
 			case <-statsTimer.C:
 				if !s.config.PurgeOnly {
 					s.collectStats()
@@ -100,7 +104,7 @@ func (s *ApiServer) Start() {
 				purgeTimer.Reset(purgeIntv)
 			}
 		}
-	}()
+	})
 
 	if !s.config.PurgeOnly {
 		s.listen()

@@ -2,13 +2,14 @@ package policy
 
 import (
 	"fmt"
-	"github.com/etclabscore/core-pool/util/logger"
 	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/etclabscore/core-pool/common"
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/storage"
 	"github.com/etclabscore/core-pool/util"
 )
@@ -84,9 +85,12 @@ func Start(cfg *Config, storage *storage.RedisClient) *PolicyServer {
 	refreshTimer := time.NewTimer(refreshIntv)
 	logger.Info("Set policy state refresh every %v", refreshIntv)
 
-	go func() {
+	common.RoutineGroup.GoRecover(func() error {
 		for {
 			select {
+			case <-common.RoutineCtx.Done():
+				logger.Info("Stopping policy state refresh")
+				return nil
 			case <-resetTimer.C:
 				s.resetStats()
 				resetTimer.Reset(resetIntv)
@@ -95,24 +99,28 @@ func Start(cfg *Config, storage *storage.RedisClient) *PolicyServer {
 				refreshTimer.Reset(refreshIntv)
 			}
 		}
-	}()
+	})
 
 	for i := 0; i < s.config.Workers; i++ {
-		s.startPolicyWorker()
+		s.startPolicyWorker(i)
 	}
 	logger.Info("Running with %v policy workers", s.config.Workers)
 	return s
 }
 
-func (s *PolicyServer) startPolicyWorker() {
-	go func() {
+func (s *PolicyServer) startPolicyWorker(workId int) {
+	common.RoutineGroup.GoRecover(func() error {
+		id := workId
 		for {
 			select {
+			case <-common.RoutineCtx.Done():
+				logger.Info("Stopping ban worker, id: %d", id)
+				return nil
 			case ip := <-s.banChannel:
 				s.doBan(ip)
 			}
 		}
-	}()
+	})
 }
 
 func (s *PolicyServer) resetStats() {

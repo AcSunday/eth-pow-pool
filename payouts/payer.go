@@ -7,10 +7,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/etclabscore/core-pool/common"
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/rpc"
 	"github.com/etclabscore/core-pool/storage"
 	"github.com/etclabscore/core-pool/util"
-	"github.com/etclabscore/core-pool/util/logger"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -96,15 +97,18 @@ func (u *PayoutsProcessor) Start() {
 	u.process()
 	timer.Reset(intv)
 
-	go func() {
+	common.RoutineGroup.GoRecover(func() error {
 		for {
 			select {
+			case <-common.RoutineCtx.Done():
+				logger.Info("Stopping payouts working module")
+				return nil
 			case <-timer.C:
 				u.process()
 				timer.Reset(intv)
 			}
 		}
-	}()
+	})
 }
 
 func (u *PayoutsProcessor) process() {

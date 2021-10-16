@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"encoding/json"
-	"github.com/etclabscore/core-pool/util/logger"
 	"io"
 	"net"
 	"net/http"
@@ -11,12 +10,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/mux"
-
+	"github.com/etclabscore/core-pool/common"
+	"github.com/etclabscore/core-pool/library/logger"
 	"github.com/etclabscore/core-pool/policy"
 	"github.com/etclabscore/core-pool/rpc"
 	"github.com/etclabscore/core-pool/storage"
 	"github.com/etclabscore/core-pool/util"
+
+	"github.com/gorilla/mux"
 )
 
 type ProxyServer struct {
@@ -87,7 +88,10 @@ func NewProxy(cfg *Config, backend *storage.RedisClient) *ProxyServer {
 	if cfg.Proxy.Stratum.Enabled {
 		proxy.sessions = make(map[*Session]struct{})
 		proxy.Extranonces = make(map[string]bool)
-		go proxy.ListenTCP()
+		common.RoutineGroup.GoRecover(func() error {
+			proxy.ListenTCP()
+			return nil
+		})
 	}
 
 	proxy.fetchBlockTemplate()
@@ -104,29 +108,38 @@ func NewProxy(cfg *Config, backend *storage.RedisClient) *ProxyServer {
 	stateUpdateIntv := util.MustParseDuration(cfg.Proxy.StateUpdateInterval)
 	stateUpdateTimer := time.NewTimer(stateUpdateIntv)
 
-	go func() {
+	common.RoutineGroup.GoRecover(func() error {
 		for {
 			select {
+			case <-common.RoutineCtx.Done():
+				logger.Info("Stopping fetch block worker")
+				return nil
 			case <-refreshTimer.C:
 				proxy.fetchBlockTemplate()
 				refreshTimer.Reset(refreshIntv)
 			}
 		}
-	}()
+	})
 
-	go func() {
+	common.RoutineGroup.GoRecover(func() error {
 		for {
 			select {
+			case <-common.RoutineCtx.Done():
+				logger.Info("Stopping check upstreams worker")
+				return nil
 			case <-checkTimer.C:
 				proxy.checkUpstreams()
 				checkTimer.Reset(checkIntv)
 			}
 		}
-	}()
+	})
 
-	go func() {
+	common.RoutineGroup.GoRecover(func() error {
 		for {
 			select {
+			case <-common.RoutineCtx.Done():
+				logger.Info("Stopping write node state worker")
+				return nil
 			case <-stateUpdateTimer.C:
 				t := proxy.currentBlockTemplate()
 				if t != nil {
@@ -141,7 +154,7 @@ func NewProxy(cfg *Config, backend *storage.RedisClient) *ProxyServer {
 				stateUpdateTimer.Reset(stateUpdateIntv)
 			}
 		}
-	}()
+	})
 
 	return proxy
 }
