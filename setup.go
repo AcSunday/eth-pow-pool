@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/etclabscore/core-pool/common"
-	"github.com/etclabscore/core-pool/library/clean"
-	"github.com/etclabscore/core-pool/library/routine"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -14,6 +11,10 @@ import (
 	"time"
 
 	"github.com/yvasiyarov/gorelic"
+
+	"github.com/etclabscore/core-pool/common"
+	"github.com/etclabscore/core-pool/library/clean"
+	"github.com/etclabscore/core-pool/library/routine"
 
 	"github.com/etclabscore/core-pool/api"
 	"github.com/etclabscore/core-pool/library/logger"
@@ -40,7 +41,7 @@ func Init() {
 	// 初始化goroutine Group，注册退出函数进clean
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	common.RoutineGroup, common.RoutineCtx = routine.NewGroupWithContext(cfg.MaxRoutine, ctx)
-	common.RoutineGroup.Go(recoverGoroutine)
+	common.RoutineGroup.Go(recoverGoroutine) // 启动任务恢复
 	clean.PushFunc(func() error {
 		close(routine.RecoverFuncChan)
 		cancelFunc()

@@ -1,18 +1,20 @@
 # core-pool
+基于github上的core-pool修改与优化
+https://github.com/etclabscore/core-pool
 
 ## Features
 
-* Support for HTTP and Stratum mining
-* Detailed block stats with luck percentage and full reward
-* Failover geth instances: geth high availability built in
-* Separate stats for workers: can highlight timed-out workers so miners can perform maintenance of rigs
-* JSON-API for stats
-* New vue based UI
-* Supports Ethereum Classic, Mordor, Ethereum, Ropsten & Ubiq.
+* 支持 HTTP 和 Stratum 挖掘
+* 详细的区块统计数据，包括运气百分比和全额奖励
+* 故障转移geth实例：内置geth高可用性
+* 工人的单独统计数据：可以突出显示超时的工人，以便矿工可以对钻机进行维护
+* 用于统计的 JSON-API
+* 新的基于 vue 的 UI（前后端分离）
+* 支持以太坊经典、魔多、以太坊、Ropsten 和 Ubiq。
 
 ## Building on Linux
 
-Dependencies:
+环境与依赖关系:
 
   * go >= 1.13
   * core-geth
@@ -20,23 +22,23 @@ Dependencies:
   * nodejs >= 4 LTS
   * nginx
 
-**I highly recommend to use Ubuntu 20.04 LTS.**
+**我强烈建议使用 Ubuntu 20.04 LTS**
 
-First install  [core-geth](https://github.com/etclabscore/core-geth/releases).
+首先安装  [core-geth](https://geth.ethereum.org/downloads/).
 
-Clone & compile:
+Clone并编译（需要gcc环境）:
 
     git config --global http.https://gopkg.in.followRedirects true
     git clone https://github.com/etclabscore/core-pool.git
     cd core-pool
     make
 
-Install redis-server:
+安装 redis-server:
 
     sudo apt update
     sudo apt install redis-server
 
-*The supervised directive is set to no by default. Since you are running Ubuntu, which uses the systemd init system, change this to systemd:*
+*默认情况下，受监督的指令设置为 no。 由于您正在运行使用 systemd init 系统的 Ubuntu，请将其更改为 systemd:*
 
     sudo nano /etc/redis/redis.conf
 
@@ -60,165 +62,173 @@ supervised systemd
     sudo systemctl restart redis.service
 
 
-**make sure redis is bound to localhost**
+**确保 redis 绑定到本地主机**
 
   sudo nano /etc/redis/redis.conf
 
-Locate this line and make sure it is uncommented (remove the # if it exists):
+找到这一行并确保它没有被注释（删除 # 如果存在）:
 
 ```bash
 bind 127.0.0.1 ::1
 ```
 
-Restart redis
+重启 redis
 
     sudo systemctl restart redis
 
-## Running Pool
+## 运行 Pool
 
     ./build/bin/core-pool config.json
 
-You can use Ubuntu upstart - check for sample config in <code>upstart.conf</code>.
+您可以使用 Ubuntu upstart - 检查 <code>upstart.conf</code> 中的示例配置.
 
-### Serving API using nginx
+### 使用 nginx 提供 API
 
-Create an upstream for API:
+创建一个 upstream 的转发 API:
 
     upstream api {
         server 127.0.0.1:8080;
     }
 
-and add this setting after <code>location /</code>:
+并在之后添加此设置 <code>location /</code>:
 
     location /api {
         proxy_pass http://api;
     }
 
-### Configuration
+### 配置文件说明
 
-Configuration is actually simple, just read it twice and think twice before changing defaults.
+配置其实很简单，在更改默认值之前，只需阅读两遍并三思而后行。
 
-**Don't copy config directly from this manual. Use the example config from the package,
-otherwise you will get errors on start because of JSON comments.**
+**不要直接从本手册中复制配置。 请使用项目中的示例配置，
+  否则你会因为 JSON 注释而在运行时出错。**
 
 ```javascript
 {
-  // Set to the number of CPU cores of your server
+  // 为您服务器设置的 CPU 核心数
   "threads": 2,
-  // Prefix for keys in redis store
+  // redis 存储中键的前缀
   "coin": "etc",
-  // Give unique name to each instance
+  // 为每个实例赋予唯一名称
   "name": "main",
-  // mordor, classic, ethereum, ropsten or ubiq
+  // 币种网络 mordor, classic, ethereum, ropsten 或 ubiq
   "network": "classic",
+  // 运行级别：production，testing，dev 三种，只有dev会记录DEBUG日志
+  "runlevel": "dev",
+  // 最大运行的goroutine数量
+  "maxRoutine": 10000,
+
   "proxy": {
     "enabled": true,
 
-    // Bind HTTP mining endpoint to this IP:PORT
+    // 将 HTTP 挖掘服务绑定到此 IP:PORT
     "listen": "0.0.0.0:8888",
 
-    // Allow only this header and body size of HTTP request from miners
+    // 仅允许来自矿工的 HTTP 请求的此标头和正文大小
     "limitHeadersSize": 1024,
     "limitBodySize": 256,
 
-    /* Set to true if you are behind CloudFlare (not recommended) or behind http-reverse
-      proxy to enable IP detection from X-Forwarded-For header.
-      Advanced users only. It's tricky to make it right and secure.
+    /*   如果您支持 CloudFlare（不推荐）或支持 http-reverse 代理，
+       则设置为 true 以启用来自 X-Forwarded-For 标头的 IP 检测。
+       仅限高级用户。 使它正确和安全是很棘手的。
     */
     "behindReverseProxy": false,
 
-    // Stratum mining endpoint
+    // Stratum 协议挖矿配置
     "stratum": {
       "enabled": true,
-      // Bind stratum mining socket to this IP:PORT
+      // 绑定 stratum 协议的 IP:PORT （走TCP）
       "listen": "0.0.0.0:8008",
       "timeout": "120s",
       "maxConn": 8192,
+      // 安全证书验证
       "tls": false,
       "certFile": "/path/to/cert.pem",
       "keyFile": "/path/to/key.pem"
     },
 
-    // Try to get new job from node in this interval
+    // 尝试在此时间间隔内，从钱包节点获取新的挖矿job
     "blockRefreshInterval": "120ms",
     "stateUpdateInterval": "3s",
-    // Require this share difficulty from miners
+    // 让矿工们共享这个难度
     "difficulty": 2000000000,
 
-    /* Reply error to miner instead of job if redis is unavailable.
-      Should save electricity to miners if pool is sick and they didn't set up failovers.
+    /*   如果 redis 不可用，则向矿工而不是作业回复错误。
+       如果矿池出问题并且它们没有设置故障转移，应该为矿工节省电力。
     */
     "healthCheck": true,
-    // Mark pool sick after this number of redis failures.
+    // 检查 redis 多少次失败后，将池标记为生病（有问题）。
     "maxFails": 100,
-    // TTL for workers stats, usually should be equal to large hashrate window from API section
+    // 工人统计数据的 TTL，通常应等于 API 部分的大哈希率窗口（一个长时间的算力平滑窗口期）
     "hashrateExpiration": "3h",
 
+    // 策略配置（如ban掉有问题矿工的策略）
     "policy": {
+      // 工作协程数
       "workers": 8,
       "resetInterval": "60m",
       "refreshInterval": "1m",
 
       "banning": {
         "enabled": false,
-        /* Name of ipset for banning.
-        Check http://ipset.netfilter.org/ documentation.
+        /*   禁止的ipset名称。
+           请查看 http://ipset.netfilter.org/ 文档。
         */
         "ipset": "blacklist",
-        // Remove ban after this amount of time
+        // 在这段时间后解除禁令（解除黑名单时长）
         "timeout": 1800,
-        // Percent of invalid shares from all shares to ban miner
+        // 禁止矿工的所有shares中无效share的百分比
         "invalidPercent": 30,
-        // Check after after miner submitted this number of shares
+        // 在矿工提交此数量的share后检查
         "checkThreshold": 30,
-        // Bad miner after this number of malformed requests
+        // 在此数量的格式错误的请求之后出现错误的矿工
         "malformedLimit": 5
       },
-      // Connection rate limit
+      // 连接速率限制
       "limits": {
         "enabled": false,
-        // Number of initial connections
+        // 初始连接数
         "limit": 30,
         "grace": "5m",
-        // Increase allowed number of connections on each valid share
+        // 增加每个有效共享上允许的连接数
         "limitJump": 10
       }
     }
   },
 
-  // Provides JSON data for frontend which is static website
+  // 为静态网站前端提供 JSON 格式的API数据
   "api": {
     "enabled": true,
     "listen": "0.0.0.0:8080",
-    // Collect miners stats (hashrate, ...) in this interval
+    // 在此时间间隔内收集矿工统计数据（哈希率，等...）
     "statsCollectInterval": "5s",
-    // Purge stale stats interval
+    // 清除陈旧的统计数据间隔
     "purgeInterval": "10m",
-    // Fast hashrate estimation window for each miner from it's shares
+    // 每个矿工的快速统计算力估计窗口
     "hashrateWindow": "30m",
-    // Long and precise hashrate from shares, 3h is cool, keep it
+    // 时间相对长而比较精确的算力，推荐值 3h 很酷，保持它
     "hashrateLargeWindow": "3h",
-    // Collect stats for shares/diff ratio for this number of blocks
+    // 收集此数量块的 份额/差异比率 的统计数据
     "luckWindow": [64, 128, 256],
-    // Max number of payments to display in frontend
+    // 在前端显示的最大付款数
     "payments": 50,
-    // Max numbers of blocks to display in frontend
+    // 在前端显示的最大块数
     "blocks": 50,
 
-    /* If you are running API node on a different server where this module
-      is reading data from redis writeable slave, you must run an api instance with this option enabled in order to purge hashrate stats from main redis node.
-      Only redis writeable slave will work properly if you are distributing using redis slaves.
-      Very advanced. Usually all modules should share same redis instance.
+    /*    如果您在不同的服务器上运行 API 节点，该模块正在从 redis 可写从属服务器读取数据，
+        则必须在启用此选项的情况下运行 api 实例，以便从主 redis 节点清除哈希率统计信息。
+        如果您使用 redis slaves 进行分发，则只有 redis 可写 slave 才能正常工作。
+        很先进。 通常所有模块应该共享同一个 redis 实例。
     */
     "purgeOnly": false
   },
 
-  // Check health of each node in this interval
+  // 检查此时间间隔内每个节点的健康状况
   "upstreamCheckInterval": "5s",
 
-  /* List of parity nodes to poll for new jobs. Pool will try to get work from
-    first alive one and check in background for failed to back up.
-    Current block template of the pool is always cached in RAM indeed.
+  /*    要轮询新作业的奇偶校验节点列表。 
+      池将尝试从第一个活着的钱包节点开始工作，并在后台检查备份失败。
+      池的当前块模板确实总是缓存在 RAM 中。
   */
   "upstream": [
     {
@@ -233,81 +243,91 @@ otherwise you will get errors on start because of JSON comments.**
     }
   ],
 
-  // This is standard redis connection options
+  // 这是标准的 redis 连接选项
   "redis": {
-    // Where your redis instance is listening for commands
+    // 您的 redis 实例在哪个IP:PORT侦听命令
     "endpoint": "127.0.0.1:6379",
     "poolSize": 10,
     "database": 0,
     "password": ""
   },
 
-  // This module periodically remits ether to miners
+  // 该模块定期统计挖到的块是否成熟，并计算每个矿工应得的奖励
   "unlocker": {
     "enabled": false,
-    // Pool fee percentage
+    // 池手续费的百分比，1.0 为 1%
     "poolFee": 1.0,
-    // Pool fees beneficiary address (leave it blank to disable fee withdrawals)
+    // 池费受益人地址（留空以禁用费用提取）
     "poolFeeAddress": "",
-    // Donate 10% from pool fees to developers
+    // 将池手续费的 10% 捐赠给开发商
     "donate": true,
-    // Unlock only if this number of blocks mined back
+    // 仅当挖回此数量的区块时才解锁
     "depth": 120,
-    // Simply don't touch this option
+    // 只需不要碰这个选项
     "immatureDepth": 20,
-    // Keep mined transaction fees as pool fees
+    // 将开采的交易费用保留为矿池费用
     "keepTxFees": false,
-    // Run unlocker in this interval
+    // 在此时间间隔内运行解锁器unlocker
     "interval": "10m",
-    // Parity node rpc endpoint for unlocking blocks
+    // 用于解锁块的奇偶校验节点 rpc 端点
     "daemon": "http://127.0.0.1:8545",
-    // Rise error if can't reach parity
+    // 超时时间：如果无法达到奇偶校验，则上升错误
     "timeout": "10s"
   },
 
-  // Pay out miners using this module
+  // 此模块将给矿工支付它应得的区块奖励
   "payouts": {
     "enabled": false,
-    // Require minimum number of peers on node
+    // 转账时需要检查钱包节点上 最少连接上多少个节点
     "requirePeers": 25,
-    // Run payouts in this interval
+    // 在此时间间隔内进行付款给矿工
     "interval": "12h",
-    // Parity node rpc endpoint for payouts processing
+    // 用于支付处理的奇偶节点 rpc 端点
     "daemon": "http://127.0.0.1:8545",
-    // Rise error if can't reach parity
+    // 超时时间：如果无法达到奇偶校验，则上升错误
     "timeout": "10s",
-    // Address with pool balance
+    // 池聚合挖矿的基本钱包地址，也用于支付给矿工
     "address": "0x0",
-    // Let parity to determine gas and gasPrice
+    // 自动gas费：让网络来确定 gas 和 gasPrice
     "autoGas": true,
-    // Gas amount and price for payout tx (advanced users only)
+    // 支付交易的 Gas 数量和价格（仅限高级用户）
     "gas": "21000",
     "gasPrice": "50000000000",
-    // Send payment only if miner's balance is >= 0.5 Ether
+    // 仅当矿工余额 >= 0.5 Ether 时才发送付款
     "threshold": 500000000,
-    // Perform BGSAVE on Redis after successful payouts session
+    // 支付会话成功后在 Redis 上执行 BGSAVE
     "bgsave": false
+  },
+
+  // 日志配置
+  "logger": {
+        "logPath": "./demo.log",
+        "errLogPath": "./demo_err.log",
+        // 保存多少（天）内的日志
+        "saveDays": 7,
+        // 日志切割的时间间隔
+        "cutInterval": 86400
   }
 }
 ```
 
-If you are distributing your pool deployment to several servers or processes,
-create several configs and disable unneeded modules on each server. (Advanced users)
+如果您要将池部署分发到多个服务器或进程，
+在每台服务器上创建几个配置并禁用不需要的模块。 （高级用户）
 
-I recommend this deployment strategy:
+我推荐这个部署策略:
 
-* Mining instance - 1x (it depends, you can run one node for EU, one for US, one for Asia)
-* Unlocker and payouts instance - 1x each (strict!)
-* API instance - 1x
+* 挖矿实例 - x1（视情况而定，您可以为欧盟运行一个节点，为美国运行一个节点，为亚洲运行一个节点）
+* 解锁器和支付实例 - 各 x1（最好这样！）
+* API 实例 - x1
 
-### Notes
+### 备注
 
-* Unlocking and payouts are sequential, 1st tx go, 2nd waiting for 1st to confirm and so on. You can disable that in code. Carefully read `docs/PAYOUTS.md`.
-* Also, keep in mind that **unlocking and payouts will halt in case of backend or node RPC errors**. In that case check everything and restart.
-* You must restart module if you see errors with the word *suspended*.
-* Don't run payouts and unlocker modules as part of mining node. Create separate configs for both, launch independently and make sure you have a single instance of each module running.
-* If `poolFeeAddress` is not specified all pool profit will remain on coinbase address. If it specified, make sure to periodically send some dust back required for payments.
+* 解锁和支付是顺序的，第一个交易开始，第二个等待第一个确认等等。 您可以在代码中禁用它。 仔细阅读`docs/PAYOUTS.md`。
+* 另外，请记住**在后端或节点 RPC 错误的情况下将停止解锁和支付**。 在这种情况下，检查一切并重新启动。
+* 如果您看到带有 **suspended** 字样的错误，您必须重新启动模块。
+* 不要将支付和解锁模块作为挖矿节点的一部分运行。 为两者创建单独的配置，独立启动并确保每个模块都有一个运行的实例。
+* 如果未指定`poolFeeAddress`，则所有池利润将保留在coinbase 地址上。 如果有指定，请确保定期发送一些付款所需的灰尘。
 
-### frontend
+### 前端方面
 
-See https://github.com/etclabscore/core-pool-interface
+请看 https://github.com/etclabscore/core-pool-interface

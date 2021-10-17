@@ -3,7 +3,7 @@
 	"coin": "etc",
 	"name": "main",
 	"network": "classic",
-	"runlevel": "production",
+	"runlevel": "dev",
 	"maxRoutine": 10000,
 
 	"proxy": {
